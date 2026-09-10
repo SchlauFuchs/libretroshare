@@ -947,6 +947,28 @@ bool ftController::FileRequest(
 
 	if(size == 0)	// we treat this special case because
 	{
+		// SHA1 of the empty string: a size of 0 is only ever legitimate
+		// when paired with this hash (a genuinely empty file, nothing to
+		// transfer). Every real caller (remote dir sync, links, search,
+		// collections, mail, channels) sources size from the same record
+		// as the hash, so size==0 with any other hash is malformed input
+		// (a hand-crafted link/collection/API call, or a malicious remote
+		// attachment) - refuse it instead of creating a transfer for it,
+		// which would sit as a permanent zero-progress entry endlessly
+		// requesting chunk maps and, on FT_STATE_CHECKING, hashing in a
+		// tight loop, since there is never a legitimate way for its size
+		// to later be corrected.
+		static const RsFileHash emptyFileHash("da39a3ee5e6b4b0d3255bfef95601890afd80709");
+
+		if(hash != emptyFileHash)
+		{
+			RsErr() << __PRETTY_FUNCTION__ << " refusing FileRequest for "
+			        << fname << " with size 0 and hash " << hash
+			        << ", which is not the hash of an empty file."
+			        << " This should not normally happen." << std::endl;
+			return false;
+		}
+
 		/* if no destpath - send to download directory */
 		std::string destination ;
 
