@@ -61,6 +61,7 @@
 #include "rsitems/rsconfigitems.h"
 #include <stdio.h>
 #include <unistd.h>		/* for (u)sleep() */
+#include <filesystem>
 #include "util/rstime.h"
 
 /******
@@ -976,6 +977,22 @@ bool ftController::FileRequest(
 			destination = mDownloadPath + "/" + fname;
 		else
 			destination = dest + "/" + fname;
+
+		// Unlike a non-empty file, this never goes through moveFile() at
+		// completion (which would otherwise create the destination
+		// directory on the way), so it needs to be created here - this
+		// matters when downloading into a not-yet-created sub-folder of a
+		// directory/collection download.
+		std::string destDir, destFile;
+		RsDirUtil::splitDirFromFile(destination, destDir, destFile);
+		if(!destDir.empty())
+		{
+			std::error_code ec;
+			std::filesystem::create_directories(destDir, ec);
+			if(ec)
+				RsErr() << __PRETTY_FUNCTION__ << " Could not create directory "
+				        << destDir << " : " << ec.message() << std::endl;
+		}
 
 		// create void file with the target name.
 		FILE *f = RsDirUtil::rs_fopen(destination.c_str(),"w") ;
